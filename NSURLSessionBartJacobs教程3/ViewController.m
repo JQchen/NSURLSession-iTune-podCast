@@ -8,14 +8,16 @@
 
 #import "ViewController.h"
 #import "MWFeedParser.h"
-//#import "SVProgressHUD.h" //== remove buggy spinner
+#import "SVProgressHUD.h" //== remove buggy spinner
 #import "MTEpisodeCell.h"
 
-@interface ViewController () < MWFeedParserDelegate >
+@interface ViewController () <NSURLSessionDelegate, NSURLSessionDownloadDelegate, MWFeedParserDelegate>
 
 @property (strong, nonatomic) NSDictionary *podcast;
 @property (strong, nonatomic) NSMutableArray *episodes;
 @property (strong, nonatomic) MWFeedParser *feedParser;
+
+@property (strong, nonatomic) NSURLSession *session;
 
 @end
 
@@ -53,7 +55,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self.feedParser setDelegate:self];
     
     // Show Progress HUD
-//    [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient]; //== remove buggy spinner
+   [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient]; //== remove buggy spinner
     
     // Start Parsing
     [self.feedParser parse];
@@ -69,7 +71,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
 
 - (void)feedParserDidFinish:(MWFeedParser *)parser {
     // Dismiss Progress HUD
-//    [SVProgressHUD dismiss]; //== remove buggy spinner
+    [SVProgressHUD dismiss]; //== remove buggy spinner
     
     // Update View
     [self.tableView reloadData];
@@ -110,6 +112,21 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self setupTableView];
 }
 
+- (NSURLSession *)backgroundSession {
+    static NSURLSession *session = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        // Session Configuration
+        NSURLSessionConfiguration *sessionConfiguration = [NSURLSessionConfiguration backgroundSessionConfiguration:@"com.mobiletuts.Singlecast.BackgroundSession"];
+        
+        // Initialize Session
+        session = [NSURLSession sessionWithConfiguration:sessionConfiguration delegate:self delegateQueue:nil];
+        //A queue for scheduling the delegate calls and completion handlers. If nil, the session creates a serial operation queue for performing all delegate method calls and completion handler calls.
+    });
+    
+    return session;
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
@@ -117,14 +134,20 @@ static NSString *EpisodeCell = @"EpisodeCell";
     // Setup View
     [self setupView];
     
+    
+    // Initialize Session
+    [self setSession:[self backgroundSession]];
+    
     // Load Podcast
     [self loadPodcast];
     
     // Add Observer
     [[NSUserDefaults standardUserDefaults] addObserver:self forKeyPath:@"MTPodcast" options:NSKeyValueObservingOptionNew context:NULL];
     
-
 }
+
+
+#pragma mark - TableView Data source & Delegate
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
     return self.episodes ? 1 : 0;
@@ -149,6 +172,40 @@ static NSString *EpisodeCell = @"EpisodeCell";
     
 }
 
+- (NSURL *)urlForFeedItem:(MWFeedItem *)feedItem {
+    NSURL *result = nil;
+    
+    // Extract Enclosures
+    NSArray *enclosures = [feedItem enclosures];
+    if (!enclosures || !enclosures.count) return result;
+    
+    NSDictionary *enclosure = [enclosures objectAtIndex:0];
+    NSString *urlString = [enclosure objectForKey:@"url"];
+    result = [NSURL URLWithString:urlString];
+    
+    return result;
+}
+
+- (void)downloadEpisodeWithFeedItem:(MWFeedItem *)feedItem {
+    // Extract URL for Feed Item
+    NSURL *URL = [self urlForFeedItem:feedItem];
+    
+    if (URL) {
+        // Schedule Download Task
+        [[self.session downloadTaskWithURL:URL] resume];
+    }
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    
+    // Fetch Feed Item
+    MWFeedItem *feedItem = [self.episodes objectAtIndex:indexPath.row];
+    
+    // Download Episode with Feed Item
+    [self downloadEpisodeWithFeedItem:feedItem];
+}
+
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
 {
     return NO;
@@ -159,6 +216,89 @@ static NSString *EpisodeCell = @"EpisodeCell";
     return NO;
 }
 
+#pragma mark - NSURLSessionDelegate, NSURLSessionDownloadDelegate
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset expectedTotalBytes:(int64_t)expectedTotalBytes {
+    NSLog(@"%s", __PRETTY_FUNCTION__);
+}
+
+- (MTEpisodeCell *)cellForForDownloadTask:(NSURLSessionDownloadTask *)downloadTask {
+    // Helpers
+    MTEpisodeCell *cell = nil;
+    NSURL *URL = [[downloadTask originalRequest] URL];
+    
+    for (MWFeedItem *feedItem in self.episodes) {
+        NSURL *feedItemURL = [self urlForFeedItem:feedItem];
+        
+        if ([URL isEqual:feedItemURL]) {
+            NSUInteger index = [self.episodes indexOfObject:feedItem];
+            cell = (MTEpisodeCell *)[self.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:index inSection:0]];
+            break;
+        }
+    }
+    
+    return cell;
+}
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
+    // Calculate Progress
+    double progress = (double)totalBytesWritten / (double)totalBytesExpectedToWrite;
+    
+    // Update Table View Cell
+    MTEpisodeCell *cell = [self cellForForDownloadTask:downloadTask];
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [cell setProgress:progress];
+    });
+}
+
+- (NSURL *)episodesDirectory {
+    
+    NSURL *documents = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] lastObject];
+    NSURL *episodes = [documents URLByAppendingPathComponent:@"Episodes"];
+    
+    NSFileManager *fm = [NSFileManager defaultManager];
+    
+    if (![fm fileExistsAtPath:[episodes path]]) {
+        NSError *error = nil;
+        [fm createDirectoryAtURL:episodes withIntermediateDirectories:YES attributes:nil error:&error];
+        
+        if (error) {
+            NSLog(@"Unable to create episodes directory. %@, %@", error, error.userInfo);
+        }
+    }
+    
+    return episodes;
+}
+
+- (NSURL *)URLForEpisodeWithName:(NSString *)name {
+    if (!name) return nil;
+    return [self.episodesDirectory URLByAppendingPathComponent:name];
+}
+
+- (void)moveFileWithURL:(NSURL *)URL downloadTask:(NSURLSessionDownloadTask *)downloadTask {
+    // Filename
+    NSString *fileName = [[[downloadTask originalRequest] URL] lastPathComponent];
+    
+    // Local URL
+    NSURL *localURL = [self URLForEpisodeWithName:fileName];
+    
+    NSFileManager *fm = [NSFileManager defaultManager];
+    
+    if ([fm fileExistsAtPath:[URL path]]) {
+        NSError *error = nil;
+        [fm moveItemAtURL:URL toURL:localURL error:&error];
+        
+        if (error) {
+            NSLog(@"Unable to move temporary file to destination. %@, %@", error, error.userInfo);
+        }
+    }
+}
+
+- (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location {
+    // Write File to Disk
+    [self moveFileWithURL:location downloadTask:downloadTask];
+}
 
 - (void)didReceiveMemoryWarning {
     [super didReceiveMemoryWarning];
