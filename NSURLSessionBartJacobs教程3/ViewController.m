@@ -8,7 +8,7 @@
 
 #import "ViewController.h"
 #import "MWFeedParser.h"
-#import "SVProgressHUD.h"
+//#import "SVProgressHUD.h" //== remove buggy spinner
 #import "MTEpisodeCell.h"
 
 @interface ViewController () < MWFeedParserDelegate >
@@ -53,7 +53,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self.feedParser setDelegate:self];
     
     // Show Progress HUD
-    [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient];
+//    [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient]; //== remove buggy spinner
     
     // Start Parsing
     [self.feedParser parse];
@@ -69,7 +69,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
 
 - (void)feedParserDidFinish:(MWFeedParser *)parser {
     // Dismiss Progress HUD
-    [SVProgressHUD dismiss];
+//    [SVProgressHUD dismiss]; //== remove buggy spinner
     
     // Update View
     [self.tableView reloadData];
