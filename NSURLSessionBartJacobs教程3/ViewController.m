@@ -9,6 +9,7 @@
 #import "ViewController.h"
 #import "MWFeedParser.h"
 #import "SVProgressHUD.h"
+#import "MTEpisodeCell.h"
 
 @interface ViewController () < MWFeedParserDelegate >
 
@@ -99,9 +100,22 @@ static NSString *EpisodeCell = @"EpisodeCell";
     }
 }
 
+- (void)setupTableView {
+    // Register Class for Cell Reuse
+    [self.tableView registerClass:[MTEpisodeCell class] forCellReuseIdentifier:EpisodeCell];
+}
+
+- (void)setupView {
+    // Setup Table View
+    [self setupTableView];
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
+    
+    // Setup View
+    [self setupView];
     
     // Load Podcast
     [self loadPodcast];
@@ -121,7 +135,8 @@ static NSString *EpisodeCell = @"EpisodeCell";
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:EpisodeCell forIndexPath:indexPath];
+    
+    MTEpisodeCell *cell = (MTEpisodeCell *)[tableView dequeueReusableCellWithIdentifier:EpisodeCell forIndexPath:indexPath];
     
     // Fetch Feed Item
     MWFeedItem *feedItem = [self.episodes objectAtIndex:indexPath.row];
@@ -131,6 +146,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [cell.detailTextLabel setText:[NSString stringWithFormat:@"%@", feedItem.date]];
     
     return cell;
+    
 }
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath

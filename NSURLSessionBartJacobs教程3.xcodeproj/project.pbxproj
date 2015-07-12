@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		98981C431B52F9E7007017FA /* MTEpisodeCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 98981C421B52F9E7007017FA /* MTEpisodeCell.m */; };
 		98C20ADB1B51E8B7000A33C3 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 98C20ADA1B51E8B7000A33C3 /* main.m */; };
 		98C20ADE1B51E8B7000A33C3 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 98C20ADD1B51E8B7000A33C3 /* AppDelegate.m */; };
 		98C20AE11B51E8B7000A33C3 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 98C20AE01B51E8B7000A33C3 /* ViewController.m */; };
@@ -29,6 +30,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		98981C411B52F9E7007017FA /* MTEpisodeCell.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MTEpisodeCell.h; sourceTree = "<group>"; };
+		98981C421B52F9E7007017FA /* MTEpisodeCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = MTEpisodeCell.m; sourceTree = "<group>"; };
 		98C20AD51B51E8B7000A33C3 /* NSURLSessionBartJacobs教程3.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "NSURLSessionBartJacobs教程3.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		98C20AD91B51E8B7000A33C3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		98C20ADA1B51E8B7000A33C3 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -108,6 +111,8 @@
 		98C20AD71B51E8B7000A33C3 /* NSURLSessionBartJacobs教程3 */ = {
 			isa = PBXGroup;
 			children = (
+				98981C411B52F9E7007017FA /* MTEpisodeCell.h */,
+				98981C421B52F9E7007017FA /* MTEpisodeCell.m */,
 				98C20ADC1B51E8B7000A33C3 /* AppDelegate.h */,
 				98C20ADD1B51E8B7000A33C3 /* AppDelegate.m */,
 				98C20ADF1B51E8B7000A33C3 /* ViewController.h */,
@@ -286,6 +291,7 @@
 				98C20AE11B51E8B7000A33C3 /* ViewController.m in Sources */,
 				98C20B001B51E98F000A33C3 /* MTSearchViewController.m in Sources */,
 				98C20ADE1B51E8B7000A33C3 /* AppDelegate.m in Sources */,
+				98981C431B52F9E7007017FA /* MTEpisodeCell.m in Sources */,
 				98C20ADB1B51E8B7000A33C3 /* main.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
