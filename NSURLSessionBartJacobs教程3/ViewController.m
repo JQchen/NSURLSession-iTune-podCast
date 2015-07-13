@@ -8,8 +8,10 @@
 
 #import "ViewController.h"
 #import "MWFeedParser.h"
-#import "SVProgressHUD.h" //== remove buggy spinner
+//#import "SVProgressHUD.h" //== remove buggy spinner
 #import "MTEpisodeCell.h"
+#import "AppDelegate.h"
+
 
 @interface ViewController () <NSURLSessionDelegate, NSURLSessionDownloadDelegate, MWFeedParserDelegate>
 
@@ -57,7 +59,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self.feedParser setDelegate:self];
     
     // Show Progress HUD
-   [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient]; //== remove buggy spinner
+//   [SVProgressHUD showWithMaskType:SVProgressHUDMaskTypeGradient]; //== remove buggy spinner
     
     // Start Parsing
     [self.feedParser parse];
@@ -67,7 +69,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
 
 - (void)feedParserDidFinish:(MWFeedParser *)parser {
     // Dismiss Progress HUD
-    [SVProgressHUD dismiss]; //== remove buggy spinner
+//    [SVProgressHUD dismiss]; //== remove buggy spinner
     
     // Update View
     [self.tableView reloadData];
@@ -250,7 +252,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     NSLog(@"%s", __PRETTY_FUNCTION__);
 }
 
-- (MTEpisodeCell *)cellForForDownloadTask:(NSURLSessionDownloadTask *)downloadTask {
+- (MTEpisodeCell *)cellForDownloadTask:(NSURLSessionDownloadTask *)downloadTask {
     // Helpers
     MTEpisodeCell *cell = nil;
     NSURL *URL = [[downloadTask originalRequest] URL];
@@ -277,7 +279,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self.progressBuffer setObject:@(progress) forKey:[URL absoluteString]];
     
     // Update Table View Cell
-    MTEpisodeCell *cell = [self cellForForDownloadTask:downloadTask];
+    MTEpisodeCell *cell = [self cellForDownloadTask:downloadTask];
     
     dispatch_async(dispatch_get_main_queue(), ^{
         [cell setProgress:progress];
@@ -327,6 +329,22 @@ static NSString *EpisodeCell = @"EpisodeCell";
     }
 }
 
+- (void)invokeBackgroundSessionCompletionHandler {
+    [self.session getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
+        NSUInteger count = [dataTasks count] + [uploadTasks count] + [downloadTasks count];
+        
+        if (!count) {
+            AppDelegate *applicationDelegate = (AppDelegate *)[[UIApplication sharedApplication] delegate];
+            void (^backgroundSessionCompletionHandler)() = [applicationDelegate backgroundSessionCompletionHandler];
+            
+            if (backgroundSessionCompletionHandler) {
+                [applicationDelegate setBackgroundSessionCompletionHandler:nil];
+                backgroundSessionCompletionHandler();
+            }
+        }
+    }];
+}
+
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location {
     // Write File to Disk
     [self moveFileWithURL:location downloadTask:downloadTask];
@@ -334,6 +352,14 @@ static NSString *EpisodeCell = @"EpisodeCell";
     // Update Progress Buffer
     NSURL *URL = [[downloadTask originalRequest] URL];
     [self.progressBuffer setObject:@(1.0) forKey:[URL absoluteString]];
+    
+    // update cell appearance
+    MTEpisodeCell *cell = [self cellForDownloadTask:downloadTask];
+    NSIndexPath *indexPath = [self.tableView indexPathForCell:cell];
+    [self.tableView reloadRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationAutomatic];
+    
+    // Invoke Background Completion Handler
+    [self invokeBackgroundSessionCompletionHandler];
 }
 
 - (void)didReceiveMemoryWarning {
