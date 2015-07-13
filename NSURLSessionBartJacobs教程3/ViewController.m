@@ -18,6 +18,8 @@
 @property (strong, nonatomic) MWFeedParser *feedParser;
 
 @property (strong, nonatomic) NSURLSession *session;
+@property (strong, nonatomic) NSMutableDictionary *progressBuffer;
+
 
 @end
 
@@ -61,13 +63,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     [self.feedParser parse];
 }
 
-- (void)feedParser:(MWFeedParser *)parser didParseFeedItem:(MWFeedItem *)item {
-    if (!self.episodes) {
-        self.episodes = [NSMutableArray array];
-    }
-    
-    [self.episodes addObject:item];
-}
+#pragma mark MWFeedParserDelegate
 
 - (void)feedParserDidFinish:(MWFeedParser *)parser {
     // Dismiss Progress HUD
@@ -75,6 +71,22 @@ static NSString *EpisodeCell = @"EpisodeCell";
     
     // Update View
     [self.tableView reloadData];
+}
+
+- (void)feedParser:(MWFeedParser *)parser didParseFeedItem:(MWFeedItem *)item {
+    if (!self.episodes) {
+        self.episodes = [NSMutableArray array];
+    }
+    
+    [self.episodes addObject:item];
+    
+    // Update Progress Buffer
+    NSURL *URL = [self urlForFeedItem:item];
+    NSURL *localURL = [self localURLForEpisodeWithName:[URL lastPathComponent]];
+    
+    if ([[NSFileManager defaultManager] fileExistsAtPath:[localURL path]]) {
+        [self.progressBuffer setObject:@(1.0) forKey:[URL absoluteString]];
+    }
 }
 
 - (void)setPodcast:(NSDictionary *)podcast {
@@ -134,9 +146,11 @@ static NSString *EpisodeCell = @"EpisodeCell";
     // Setup View
     [self setupView];
     
-    
     // Initialize Session
     [self setSession:[self backgroundSession]];
+    
+    // Initialize Progress Buffer
+    [self setProgressBuffer:[NSMutableDictionary dictionary]];
     
     // Load Podcast
     [self loadPodcast];
@@ -163,11 +177,17 @@ static NSString *EpisodeCell = @"EpisodeCell";
     
     // Fetch Feed Item
     MWFeedItem *feedItem = [self.episodes objectAtIndex:indexPath.row];
+    NSURL *URL = [self urlForFeedItem:feedItem];
+
     
     // Configure Table View Cell
     [cell.textLabel setText:feedItem.title];
     [cell.detailTextLabel setText:[NSString stringWithFormat:@"%@", feedItem.date]];
     
+    NSNumber *progress = [self.progressBuffer objectForKey:[URL absoluteString]];
+    if (!progress) progress = @(0.0);
+    
+    [cell setProgress:[progress floatValue]];
     return cell;
     
 }
@@ -193,6 +213,9 @@ static NSString *EpisodeCell = @"EpisodeCell";
     if (URL) {
         // Schedule Download Task
         [[self.session downloadTaskWithURL:URL] resume];
+        
+        // Update Progress Buffer
+        [self.progressBuffer setObject:@(0.0) forKey:[URL absoluteString]];
     }
 }
 
@@ -202,8 +225,13 @@ static NSString *EpisodeCell = @"EpisodeCell";
     // Fetch Feed Item
     MWFeedItem *feedItem = [self.episodes objectAtIndex:indexPath.row];
     
-    // Download Episode with Feed Item
-    [self downloadEpisodeWithFeedItem:feedItem];
+    // URL for Feed Item
+    NSURL *URL = [self urlForFeedItem:feedItem];
+    
+    if (![self.progressBuffer objectForKey:[URL absoluteString]]) {
+        // Download Episode with Feed Item
+        [self downloadEpisodeWithFeedItem:feedItem];
+    }
 }
 
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath
@@ -244,6 +272,10 @@ static NSString *EpisodeCell = @"EpisodeCell";
     // Calculate Progress
     double progress = (double)totalBytesWritten / (double)totalBytesExpectedToWrite;
     
+    // Update Progress Buffer
+    NSURL *URL = [[downloadTask originalRequest] URL];
+    [self.progressBuffer setObject:@(progress) forKey:[URL absoluteString]];
+    
     // Update Table View Cell
     MTEpisodeCell *cell = [self cellForForDownloadTask:downloadTask];
     
@@ -271,7 +303,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     return episodes;
 }
 
-- (NSURL *)URLForEpisodeWithName:(NSString *)name {
+- (NSURL *)localURLForEpisodeWithName:(NSString *)name {
     if (!name) return nil;
     return [self.episodesDirectory URLByAppendingPathComponent:name];
 }
@@ -281,7 +313,7 @@ static NSString *EpisodeCell = @"EpisodeCell";
     NSString *fileName = [[[downloadTask originalRequest] URL] lastPathComponent];
     
     // Local URL
-    NSURL *localURL = [self URLForEpisodeWithName:fileName];
+    NSURL *localURL = [self localURLForEpisodeWithName:fileName];
     
     NSFileManager *fm = [NSFileManager defaultManager];
     
@@ -298,6 +330,10 @@ static NSString *EpisodeCell = @"EpisodeCell";
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location {
     // Write File to Disk
     [self moveFileWithURL:location downloadTask:downloadTask];
+    
+    // Update Progress Buffer
+    NSURL *URL = [[downloadTask originalRequest] URL];
+    [self.progressBuffer setObject:@(1.0) forKey:[URL absoluteString]];
 }
 
 - (void)didReceiveMemoryWarning {
